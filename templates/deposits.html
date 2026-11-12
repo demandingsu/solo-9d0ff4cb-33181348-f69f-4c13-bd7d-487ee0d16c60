@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>保证金退还核对</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hero deposit-hero">
+    <div class="container hero-inner">
+      <div>
+        <p class="eyebrow">Deposit Refund Reconciliation</p>
+        <h1>保证金退还核对</h1>
+        <p class="hero-copy">沿同一站点的保证金明细目录分页读取一张收据的到账、退款和勘误详情，按流水号去重、按发布时间应用勘误，辅助采购中心财务确认还有多少未退。</p>
+      </div>
+      <div class="hero-card" aria-label="核对规则">
+        <strong>核对规则</strong>
+        <span>同站分页全量读取</span>
+        <span>按流水号去重</span>
+        <span>勘误按发布时间替换退款金额</span>
+        <span>冲突或缺失标为“待核实”</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <nav class="feature-nav" aria-label="功能导航">
+      <a href="{{ url_for('index') }}">招标截标状态核对</a>
+      <a class="active" href="{{ url_for('deposits') }}">保证金退还核对</a>
+    </nav>
+
+    <section class="panel search-panel" aria-labelledby="search-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">输入查询条件</p>
+          <h2 id="search-title">项目、收据与明细目录</h2>
+        </div>
+        <a class="sample-site-link" href="http://localhost:8080/deposits/page-1.html" target="_blank" rel="noopener noreferrer">打开本地明细样本</a>
+      </div>
+
+      <form method="post" class="search-form deposit-form">
+        <label>
+          <span>项目编号</span>
+          <input name="project_no" value="{{ project_no }}" placeholder="例如：GSB-2026-001" required autocomplete="off">
+        </label>
+        <label>
+          <span>收据编号</span>
+          <input name="receipt_no" value="{{ receipt_no }}" placeholder="例如：SJ-2026-0007" required autocomplete="off">
+        </label>
+        <label class="wide">
+          <span>保证金明细目录 URL</span>
+          <input name="directory_url" type="url" value="{{ directory_url }}" placeholder="http://localhost:8080/deposits/page-1.html" required autocomplete="off">
+        </label>
+        <div class="form-actions">
+          <button type="submit">核对未退金额</button>
+          <a href="{{ url_for('deposits') }}" class="secondary-action">恢复示例</a>
+        </div>
+      </form>
+
+      <div class="sample-projects" aria-label="样本收据">
+        <span>样本收据：</span>
+        <code>SJ-2026-0007</code><em>尚有未退</em>
+        <code>SJ-2026-0008</code><em>到账金额冲突</em>
+        <code>SJ-2026-0009</code><em>同时刻勘误冲突</em>
+        <code>SJ-2026-0010</code><em>引用流水号不存在</em>
+        <code>SJ-2026-0011</code><em>已退清</em>
+        <code>SJ-2026-0012</code><em>详情抓取失败</em>
+        <code>SJ-2026-0013</code><em>退款超过到账</em>
+      </div>
+    </section>
+
+    {% if error %}
+    <section class="alert error" role="alert">
+      <strong>无法完成核对</strong>
+      <p>{{ error }}</p>
+    </section>
+    {% endif %}
+
+    {% if result %}
+    <section class="result-banner status-{{ result.status }}" aria-live="polite">
+      <div class="result-main">
+        <p class="eyebrow">退还核对结论</p>
+        <h2>{{ result.status_label }}</h2>
+        <p>{{ result.headline }}</p>
+      </div>
+      <div class="deadline-card amount-card">
+        <span>未退金额</span>
+        {% if result.outstanding_amount is not none %}
+          <strong>¥ {{ result.outstanding_amount|money }}</strong>
+          <small>到账 {{ result.arrival_amount|money }} − 已退 {{ result.refunded_amount|money }}</small>
+        {% else %}
+          <strong>待核实</strong>
+          <small>存在未决或冲突信息，不给出确定余额</small>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="summary-grid deposit-summary" aria-label="核对摘要">
+      <div><span>项目编号</span><strong>{{ result.project_no }}</strong></div>
+      <div><span>收据编号</span><strong>{{ result.receipt_no }}</strong></div>
+      <div><span>到账金额</span><strong>{{ result.arrival_amount|money }}</strong></div>
+      <div><span>已退合计</span><strong>{{ result.refunded_amount|money }}</strong></div>
+      <div><span>核对时间</span><strong>{{ result.checked_at|dt }}</strong></div>
+      <div><span>目录页 / 明细</span><strong>{{ result.pages|length }} 页 / {{ result.record_count }} 条</strong></div>
+      <div><span>去重合并</span><strong>{{ result.duplicates_skipped }} 条</strong></div>
+    </section>
+
+    {% if result.issues %}
+    <section class="alert warning" role="alert">
+      <strong>需要人工核实</strong>
+      <ul>
+        {% for issue in result.issues %}
+        <li>{{ issue }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if result.notes %}
+    <section class="notes">
+      {% for note in result.notes %}<span>{{ note }}</span>{% endfor %}
+    </section>
+    {% endif %}
+
+    <section class="panel timeline-panel" aria-labelledby="refunds-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">分笔退款来源</p>
+          <h2 id="refunds-title">退款明细与勘误更正</h2>
+        </div>
+        <a href="{{ result.directory_url }}" target="_blank" rel="noopener noreferrer">打开原始明细目录</a>
+      </div>
+
+      {% if result.refunds %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>流水号</th>
+              <th>退款发布时间</th>
+              <th>明细来源</th>
+              <th>原退款金额</th>
+              <th>勘误后金额</th>
+              <th>勘误依据</th>
+              <th>计入已退</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in result.refunds %}
+            <tr class="{% if not line.fetch_ok %}fetch-failed{% endif %}">
+              <td class="time-cell">{{ line.serial or "（缺流水号）" }}</td>
+              <td class="time-cell">{{ line.publish_time|dt }}</td>
+              <td>
+                <div class="notice-title">{{ line.title }}</div>
+                <div class="source-links">
+                  <a href="{{ line.url }}" target="_blank" rel="noopener noreferrer">退款详情</a>
+                  {% if line.found_on %}<a href="{{ line.found_on }}" target="_blank" rel="noopener noreferrer">发现目录页</a>{% endif %}
+                </div>
+              </td>
+              <td>{{ line.original_amount|money }}</td>
+              <td>
+                {% if line.amount is not none %}<strong>{{ line.amount|money }}</strong>{% else %}—{% endif %}
+                {% if line.corrected %}<div class="muted">已按最新勘误替换</div>{% endif %}
+              </td>
+              <td>
+                {% if line.conflict_note %}
+                  <span class="role pending-role">{{ line.conflict_note }}</span>
+                {% elif line.errata %}
+                  <ul class="errata-list">
+                    {% for item in line.errata %}
+                    <li>
+                      <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.serial or item.title }}</a>
+                      <span class="muted">{{ item.publish_time|dt }} · {{ item.amount|money }} 元</span>
+                      {% if item.applied_to %}<span class="badge badge-correction">已应用</span>{% endif %}
+                    </li>
+                    {% endfor %}
+                  </ul>
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                {% if line.amount is not none %}
+                  <strong>{{ line.amount|money }}</strong>
+                {% else %}
+                  <span class="role pending-role">金额待核实</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">未找到该收据的退款明细。</div>
+      {% endif %}
+    </section>
+
+    <section class="panel timeline-panel" aria-labelledby="arrivals-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">应退总额依据</p>
+          <h2 id="arrivals-title">到账明细</h2>
+        </div>
+      </div>
+      {% if result.arrival_records %}
+      <div class="table-wrap">
+        <table class="compact-table">
+          <thead>
+            <tr>
+              <th>流水号</th>
+              <th>到账发布时间</th>
+              <th>金额</th>
+              <th>明细来源</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in result.arrival_records %}
+            <tr class="{% if not item.fetch_ok %}fetch-failed{% endif %}">
+              <td class="time-cell">{{ item.serial or "—" }}</td>
+              <td class="time-cell">{{ item.publish_time|dt }}</td>
+              <td>{{ item.amount|money }}</td>
+              <td>
+                <div class="notice-title">{{ item.title }}</div>
+                <div class="source-links">
+                  <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">到账详情</a>
+                  {% if item.found_on %}<a href="{{ item.found_on }}" target="_blank" rel="noopener noreferrer">发现目录页</a>{% endif %}
+                </div>
+                {% if item.source_note %}<div class="muted">{{ item.source_note }}</div>{% endif %}
+                {% if item.error %}<div class="error-text">{{ item.error }}</div>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">未找到该收据的有效到账明细。</div>
+      {% endif %}
+    </section>
+
+    {% if result.errata %}
+    <section class="panel timeline-panel" aria-labelledby="errata-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">更正记录</p>
+          <h2 id="errata-title">全部勘误明细</h2>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="compact-table">
+          <thead>
+            <tr>
+              <th>勘误流水号</th>
+              <th>引用退款流水号</th>
+              <th>更正后金额</th>
+              <th>原金额</th>
+              <th>发布时间</th>
+              <th>来源与使用情况</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in result.errata %}
+            <tr class="{% if not item.fetch_ok %}fetch-failed{% endif %}">
+              <td class="time-cell">{{ item.serial or "—" }}</td>
+              <td class="time-cell">{{ item.reference or "—" }}</td>
+              <td>{{ item.amount|money }}</td>
+              <td>{{ item.original_amount|money }}</td>
+              <td class="time-cell">{{ item.publish_time|dt }}</td>
+              <td>
+                <div class="notice-title">{{ item.title }}</div>
+                <div class="source-links">
+                  <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">勘误详情</a>
+                  {% if item.found_on %}<a href="{{ item.found_on }}" target="_blank" rel="noopener noreferrer">发现目录页</a>{% endif %}
+                </div>
+                {% if item.applied_to %}
+                  <span class="badge badge-correction">已应用于退款 {{ item.applied_to }}</span>
+                {% elif not item.fetch_ok %}
+                  <span class="role pending-role">详情失败，需核实</span>
+                {% else %}
+                  <span class="muted">未应用</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+
+    {% endif %}
+
+    <section class="rules panel" aria-labelledby="rules-title">
+      <p class="eyebrow">判定说明</p>
+      <h2 id="rules-title">系统如何计算未退金额</h2>
+      <ol>
+        <li>输入项目编号、收据编号和保证金明细目录 URL，仅沿同一站点的分页链接读取详情。</li>
+        <li>只纳入标注该收据编号的到账、退款和勘误明细；目录中的其他项目记录会被排除。</li>
+        <li>按流水号去重：跨页或镜像重复的同流水号记录只计一次。</li>
+        <li>同一退款流水号有多条勘误时，按发布时间取最新一条替换原退款金额；更早的勘误仅作留痕。</li>
+        <li>未退金额 = 到账金额 − 各笔退款按勘误替换后的合计。</li>
+        <li>以下情况标记“待核实”且不给出确定余额：同一流水号到账金额冲突；同一发布时刻针对同一退款的勘误互相冲突；勘误引用的流水号不存在或不是退款；退款合计超过到账金额；相关详情抓取失败；关键金额或流水号缺失。</li>
+      </ol>
+    </section>
+  </main>
+</body>
+</html>

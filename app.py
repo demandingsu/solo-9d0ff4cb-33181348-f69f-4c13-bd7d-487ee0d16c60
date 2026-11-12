@@ -5,6 +5,8 @@ import os
 
 from flask import Flask, render_template, request
 
+from tendercheck.deposit_parsing import format_amount
+from tendercheck.deposit_scraper import DepositScraper
 from tendercheck.parsing import BEIJING_TZ, format_datetime
 from tendercheck.scraper import InputError, ListFetchError, TenderScraper
 
@@ -23,6 +25,13 @@ DEFAULT_LIST_URL = os.getenv(
     "http://localhost:8080/notices/page-1.html",
 )
 
+DEFAULT_DEPOSIT_PROJECT_NO = os.getenv("DEMO_DEPOSIT_PROJECT_NO", DEFAULT_PROJECT_NO)
+DEFAULT_RECEIPT_NO = os.getenv("DEMO_RECEIPT_NO", "SJ-2026-0007")
+DEFAULT_DEPOSIT_DIR_URL = os.getenv(
+    "DEMO_DEPOSIT_DIR_URL",
+    "http://localhost:8080/deposits/receipt-1.html",
+)
+
 
 def _int_env(name: str, default: int) -> int:
     try:
@@ -35,6 +44,11 @@ def _int_env(name: str, default: int) -> int:
 @app.template_filter("dt")
 def datetime_filter(value):
     return format_datetime(value)
+
+
+@app.template_filter("money")
+def money_filter(value):
+    return format_amount(value)
 
 
 @app.route("/healthz")
@@ -73,6 +87,43 @@ def index():
         result=result,
         error=error,
         beijing_tz=BEIJING_TZ,
+    )
+
+
+@app.route("/deposits", methods=["GET", "POST"])
+def deposits():
+    project_no = DEFAULT_DEPOSIT_PROJECT_NO
+    receipt_no = DEFAULT_RECEIPT_NO
+    directory_url = DEFAULT_DEPOSIT_DIR_URL
+    result = None
+    error = None
+
+    if request.method == "POST":
+        project_no = request.form.get("project_no", "").strip()
+        receipt_no = request.form.get("receipt_no", "").strip()
+        directory_url = request.form.get("directory_url", "").strip()
+        try:
+            scraper = DepositScraper(
+                project_no=project_no,
+                receipt_no=receipt_no,
+                directory_url=directory_url,
+                max_pages=_int_env("MAX_DEPOSIT_PAGES", 15),
+                max_details=_int_env("MAX_DEPOSIT_DETAILS", 80),
+            )
+            result = scraper.run()
+        except (InputError, ListFetchError) as exc:
+            error = str(exc)
+        except Exception:
+            logger.exception("deposit reconciliation failed")
+            error = "退还核对过程中发生未预期错误，请检查网址后重试。"
+
+    return render_template(
+        "deposits.html",
+        project_no=project_no,
+        receipt_no=receipt_no,
+        directory_url=directory_url,
+        result=result,
+        error=error,
     )
 
 

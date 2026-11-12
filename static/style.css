@@ -231,6 +231,53 @@ button:hover { background: #1e40af; }
 }
 .sample-projects em { font-style: normal; margin-right: 8px; }
 
+.feature-nav {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 6px;
+  width: fit-content;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.feature-nav a {
+  padding: 8px 16px;
+  border-radius: 999px;
+  color: #334155;
+  font-weight: 800;
+  font-size: 14px;
+}
+.feature-nav a.active { color: #fff; background: var(--blue); }
+.feature-nav a.active:hover { text-decoration: none; }
+
+.deposit-hero {
+  background:
+    radial-gradient(circle at 82% 20%, rgba(52, 211, 153, 0.28), transparent 28%),
+    linear-gradient(135deg, #064e3b 0%, #047857 68%, #0d9488 100%);
+}
+
+.deposit-form {
+  grid-template-columns: 1fr 1fr;
+}
+.deposit-form label.wide { grid-column: 1 / -1; }
+.deposit-form .form-actions { grid-column: 1 / -1; }
+
+.amount-card strong { font-variant-numeric: tabular-nums; }
+.deposit-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.deposit-summary strong { font-variant-numeric: tabular-nums; }
+
+.errata-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+.errata-list li { margin-bottom: 4px; }
+.errata-list li:last-child { margin-bottom: 0; }
+
+.compact-table { min-width: 720px; }
+
 .alert {
   margin-top: 22px;
   padding: 18px 20px;
@@ -378,8 +425,10 @@ tbody tr.fetch-failed { background: #fffbeb; }
   .result-banner { grid-template-columns: 1fr; }
   .hero-card { max-width: 520px; }
   .search-form { grid-template-columns: 1fr; }
+  .deposit-form { grid-template-columns: 1fr; }
   .form-actions { justify-content: flex-start; }
   .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .deposit-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 560px) {
@@ -388,5 +437,7 @@ tbody tr.fetch-failed { background: #fffbeb; }
   .search-panel, .timeline-panel, .rules { padding: 20px; border-radius: 18px; }
   .section-heading { display: grid; }
   .summary-grid { grid-template-columns: 1fr; }
+  .deposit-summary { grid-template-columns: 1fr; }
   .deadline-card strong { font-size: 22px; }
+  .feature-nav { width: 100%; justify-content: center; flex-wrap: wrap; }
 }

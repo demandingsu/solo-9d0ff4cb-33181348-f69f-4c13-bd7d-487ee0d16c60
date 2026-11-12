@@ -4,7 +4,10 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1] / "sample_site"
-INTENTIONALLY_MISSING = {"/detail/d-004-correction.html"}
+INTENTIONALLY_MISSING = {
+    "/detail/d-004-correction.html",
+    "/detail/d-dep-refund-0012.html",
+}
 
 
 class LinkParser(HTMLParser):
@@ -47,6 +50,31 @@ class SampleSiteTests(unittest.TestCase):
         page_three = "\n".join(self.parse_links("notices/page-3.html"))
         self.assertIn("d-001-original.html", page_two)
         self.assertIn("d-001-original.html", page_three)
+
+    def test_deposit_directory_links_exist_except_intentional_404(self):
+        for page in ["deposits/page-1.html", "deposits/page-2.html", "deposits/page-3.html"]:
+            with self.subTest(page=page):
+                for link in self.parse_links(page):
+                    if link.startswith(("http://", "https://", "mailto:", "#")):
+                        continue
+                    absolute = urljoin(f"/{page}", link)
+                    path = urlsplit(absolute).path
+                    if path in INTENTIONALLY_MISSING:
+                        continue
+                    self.assertTrue((ROOT / path.lstrip("/")).exists(), f"{page} -> {path}")
+
+    def test_deposit_pagination_contains_all_three_pages(self):
+        first_page_links = set(self.parse_links("deposits/page-1.html"))
+        self.assertIn("page-2.html", first_page_links)
+        self.assertIn("page-3.html", first_page_links)
+
+    def test_deposit_duplicates_appear_across_pages(self):
+        page_one = "\n".join(self.parse_links("deposits/page-1.html"))
+        page_three = "\n".join(self.parse_links("deposits/page-3.html"))
+        self.assertIn("d-dep-refund-0001.html", page_one)
+        self.assertIn("d-dep-refund-0001-copy.html", page_three)
+        self.assertIn("d-dep-arrival-0010.html", page_one)
+        self.assertIn("d-dep-arrival-0010b.html", "\n".join(self.parse_links("deposits/page-2.html")))
 
 
 if __name__ == "__main__":

@@ -12,6 +12,11 @@ services:
       SAMPLE_SITE_INTERNAL_URL: http://sample-site:8080
       MAX_LIST_PAGES: 15
       MAX_DETAIL_PAGES: 80
+      DEMO_DEPOSIT_PROJECT_NO: GSB-2026-001
+      DEMO_RECEIPT_NO: SJ-2026-0007
+      DEMO_DEPOSIT_DIR_URL: http://localhost:8080/deposits/page-1.html
+      MAX_DEPOSIT_PAGES: 15
+      MAX_DEPOSIT_DETAILS: 80
       TZ: Asia/Shanghai
     depends_on:
       sample-site:

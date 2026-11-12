@@ -111,13 +111,60 @@ _PAGE_PATH_RE = re.compile(
 )
 
 
-def validate_url(url: str) -> str:
+def anchor_text(anchor) -> str:
+    """Return a useful label for an anchor, including attribute fallbacks."""
+
+    text = clean_text(anchor.get_text(" ", strip=True))
+    if text:
+        return text
+    for attr in ("title", "aria-label", "data-title"):
+        value = clean_text(anchor.get(attr))
+        if value:
+            return value
+    parent = anchor.parent
+    if parent and parent.name in {"h1", "h2", "h3", "h4", "strong"}:
+        return clean_text(parent.get_text(" ", strip=True))
+    return "未命名公告"
+
+
+def is_pagination_link(anchor, absolute_url: str, text: str) -> bool:
+    """Recognize pagination controls without treating detail links as pages."""
+
+    rel_value = anchor.get("rel", [])
+    if isinstance(rel_value, str):
+        rel_value = rel_value.split()
+    rel = {str(item).lower() for item in rel_value}
+    classes = " ".join(anchor.get("class", [])).lower()
+    text_key = clean_text(text)
+
+    if rel & {"next", "prev", "previous"}:
+        return True
+    if re.search(r"(?:pagination|pager|page-link|page-item|next|prev)", classes) and (
+        _PAGE_TEXT_RE.match(text_key) or _PAGE_PATH_RE.search(urlsplit(absolute_url).path)
+    ):
+        return True
+
+    nav = anchor.find_parent("nav")
+    if nav is not None:
+        nav_marker = " ".join(nav.get("class", [])).lower() + " " + str(nav.get("id", "")).lower()
+        if re.search(r"(?:pagination|pager|page)", nav_marker) and _PAGE_TEXT_RE.match(text_key):
+            return True
+
+    if _PAGE_TEXT_RE.match(text_key):
+        parsed = urlsplit(absolute_url)
+        query_keys = {key.lower() for key, _ in parse_qsl(parsed.query, keep_blank_values=True)}
+        if query_keys & _PAGE_QUERY_KEYS or _PAGE_PATH_RE.search(parsed.path):
+            return True
+    return False
+
+
+def validate_url(url: str, *, label: str = "公告列表网址") -> str:
     url = clean_text(url)
     if not url:
-        raise InputError("请输入公告列表网址")
+        raise InputError(f"请输入{label}")
     parsed = urlsplit(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc or not parsed.hostname:
-        raise InputError("公告列表网址必须是完整的 http:// 或 https:// 地址")
+        raise InputError(f"{label}必须是完整的 http:// 或 https:// 地址")
     try:
         parsed.port
     except ValueError as exc:
@@ -446,17 +493,7 @@ class TenderScraper:
         return candidates, page_links, duplicates
 
     def _anchor_text(self, anchor) -> str:
-        text = clean_text(anchor.get_text(" ", strip=True))
-        if text:
-            return text
-        for attr in ("title", "aria-label", "data-title"):
-            value = clean_text(anchor.get(attr))
-            if value:
-                return value
-        parent = anchor.parent
-        if parent and parent.name in {"h1", "h2", "h3", "h4", "strong"}:
-            return clean_text(parent.get_text(" ", strip=True))
-        return "未命名公告"
+        return anchor_text(anchor)
 
     def _listing_container(self, anchor):
         node = anchor
@@ -517,32 +554,7 @@ class TenderScraper:
         return extract_publish_time(context)
 
     def _is_pagination_link(self, anchor, absolute_url: str, text: str) -> bool:
-        rel_value = anchor.get("rel", [])
-        if isinstance(rel_value, str):
-            rel_value = rel_value.split()
-        rel = {str(item).lower() for item in rel_value}
-        classes = " ".join(anchor.get("class", [])).lower()
-        text_key = clean_text(text)
-
-        if rel & {"next", "prev", "previous"}:
-            return True
-        if re.search(r"(?:pagination|pager|page-link|page-item|next|prev)", classes) and (
-            _PAGE_TEXT_RE.match(text_key) or _PAGE_PATH_RE.search(urlsplit(absolute_url).path)
-        ):
-            return True
-
-        nav = anchor.find_parent("nav")
-        if nav is not None:
-            nav_marker = " ".join(nav.get("class", [])).lower() + " " + str(nav.get("id", "")).lower()
-            if re.search(r"(?:pagination|pager|page)", nav_marker) and _PAGE_TEXT_RE.match(text_key):
-                return True
-
-        if _PAGE_TEXT_RE.match(text_key):
-            parsed = urlsplit(absolute_url)
-            query_keys = {key.lower() for key, _ in parse_qsl(parsed.query, keep_blank_values=True)}
-            if query_keys & _PAGE_QUERY_KEYS or _PAGE_PATH_RE.search(parsed.path):
-                return True
-        return False
+        return is_pagination_link(anchor, absolute_url, text)
 
     def _is_attachment_link(self, anchor, absolute_url: str, text: str) -> bool:
         normalized_text = clean_text(text).lower()

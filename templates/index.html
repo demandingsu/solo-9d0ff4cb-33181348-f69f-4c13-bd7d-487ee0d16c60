@@ -25,6 +25,11 @@
   </header>
 
   <main class="container">
+    <nav class="feature-nav" aria-label="功能导航">
+      <a class="active" href="{{ url_for('index') }}">招标截标状态核对</a>
+      <a href="{{ url_for('deposits') }}">保证金退还核对</a>
+    </nav>
+
     <section class="panel search-panel" aria-labelledby="search-title">
       <div class="section-heading">
         <div>
